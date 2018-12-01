@@ -1,6 +1,7 @@
 # labyrinthe
 jeu de labyrinthe en python
 
+Le jeu est un labyrinthe formé d'obstacles : des murs qui sont tout simplement là pour vous ralentir, des portes qui peuvent être traversées et au moins un point par lequel on peut quitter le labyrinthe. Si le robot arrive sur ce point, la partie est considérée comme gagnée.
 
 Le robot est contrôlable grâce à des commandes entrées au clavier. Il doit exister les commandes suivantes :
 
