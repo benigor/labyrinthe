@@ -3,26 +3,21 @@
 """Ce module contient la classe Labyrinthe."""
 
 import os
-import pickle
 
 from obstacle.mur import Mur
 from obstacle.porte import Porte
 from obstacle.sortie import Sortie
 from robot import Robot
 
-# Constantes
-FICHIER_ENREGISTREMENT = "partie"
-
 class Labyrinthe:
 
-    """Classe rep'résentant un labyrinthe.
+    """Classe représentant un labyrinthe.
 
-    Yn labyrinthe est une grille comprenant des murs placés à endroits fixes
-    ainsi qu'un robot. D'autres types d'obstacles pourraient également s'y
-    rencontrer.
+    Un labyrinthe est une grille comprenant des murs placés à endroits fixes
+    ainsi que plusieurs robots. D'autres types d'obstacles pourraient
+    également s'y rencontrer.
 
     Paramètres à préciser à la construction :
-        robot -- le robot
         obstacles -- une liste des obstacles déjà positionnés
 
     Pour créer un labyrinthe à partir d'une chaîne (par exemple à partir
@@ -33,10 +28,9 @@ class Labyrinthe:
 
     limite_x = 20
     limite_y = 20
-    def __init__(self, robot, obstacles):
-        self.robot = robot
+    def __init__(self, obstacles):
+        self.robots = []
         self.grille = {}
-        self.grille[robot.x, robot.y] = robot
         self.invisibles = []
         self.gagnee = False
         for obstacle in obstacles:
@@ -51,11 +45,21 @@ class Labyrinthe:
 
             self.grille[obstacle.x, obstacle.y] = obstacle
 
-    def afficher(self):
-        """Affiche le labyrinthe dans une console.
+    def ajouter_robot(self, robot):
+        """Ajoute un robot dans le labyrinthe."""
+        self.grille[robot.x, robot.y] = robot
+        self.robots.append(robot)
+
+    def afficher(self, robot=None):
+        """Retourne la chaîne représentant le labyrinthe.
 
         On prend les limites pour afficher la grille. Les obstacles et
-        le robot sont affichés en utilisant leur attribut de classe 'symbole'.
+        les robots sont affichés en utilisant leur attribut de classe
+        'symbole'.
+
+        On peut également préciser en paramètre un robot qui sera
+        celui du joueur consultant la grille. Son robot sera marqué
+        en majuscule pour le repérer plus facilement.
 
         """
         y = 0
@@ -66,7 +70,10 @@ class Labyrinthe:
             while x < self.limite_x:
                 case = self.grille.get((x, y))
                 if case:
-                    grille += case.symbole
+                    symbole = case.symbole
+                    if case is robot:
+                        symbole = symbole.upper()
+                    grille += symbole
                 else:
                     grille += " "
 
@@ -75,12 +82,12 @@ class Labyrinthe:
             grille += "\n"
             y += 1
 
-        print(grille, end="")
+        return grille
 
     def actualiser_invisibles(self):
         """Cette méthode actualise les obstacles invisibles.
 
-        Si le robot passe sur un obstacle passable (disons une porte),
+        Si un robot passe sur un obstacle passable (disons une porte),
         l'obstacle ne s'affiche pas. En fait, il est supprimé de la grille,
         mais placé dans les obstacles invisibles et sera de nouveau
         afficher quand le robot se sera de nouveau déplacé.
@@ -91,17 +98,15 @@ class Labyrinthe:
                 self.grille[obstacle.x, obstacle.y] = obstacle
                 self.invisibles.remove(obstacle)
 
-    def deplacer_robot(self, direction, nombre):
+    def deplacer_robot(self, robot, direction):
         """Déplace le robot.
 
         La direction est à préciser sous la forme de chaîne, "nord",
-        "est", "sud", ou "ouest". Le nombre précise le nombre de cases
-        de déplacement.
+        "est", "sud", ou "ouest".
 
         Si le robot rencontre un obstacle impassable, il s'arrête.
 
         """
-        robot = self.robot
         coords = [robot.x, robot.y]
         if direction == "nord":
             coords[1] -= 1
@@ -131,31 +136,13 @@ class Labyrinthe:
                 robot.x = x
                 robot.y = y
                 self.actualiser_invisibles()
-                self.afficher()
 
                 # On appelle la méthode 'arriver' de l'obstacle, si il existe
                 if obstacle:
                     obstacle.arriver(self, robot)
+                return True
 
-                # On enregistre la partie
-                self.enregistrer()
-
-        # Si il y a plus d'un déplacement, rappelle la méthode
-        if not self.gagnee and nombre > 1:
-            self.deplacer_robot(direction, nombre - 1)
-
-    # Méthodes d'enregistrement
-    def enregistrer(self):
-        """Enregistre la partie en cours."""
-        with open(FICHIER_ENREGISTREMENT, "wb") as fichier:
-            pic = pickle.Pickler(fichier)
-            pic.dump(self)
-
-    def detruire(self):
-        """Destruction du fichier de partie en cours."""
-        if os.path.exists(FICHIER_ENREGISTREMENT):
-            os.remove(FICHIER_ENREGISTREMENT)
-
+        return False
 
 def creer_labyrinthe_depuis_chaine(chaine):
     """Crée un labyrinthe depuis une chaîne.
@@ -165,49 +152,28 @@ def creer_labyrinthe_depuis_chaine(chaine):
     """
     symboles = {
         "o": Mur,
-        "x": Robot,
         ".": Porte,
         "u": Sortie,
     }
 
     x = 0
     y = 0
-    robot = None
     obstacles = []
     for lettre in chaine:
         if lettre == "\n":
             x = 0
             y += 1
             continue
-        elif lettre == " ":
+        elif lettre.lower() in " x":
             pass
         elif lettre.lower() in symboles:
             classe = symboles[lettre.lower()]
             objet = classe(x, y)
-            if type(objet) is Robot:
-                if robot:
-                    raise ValueError("il ne peut y avoir qu'un robot")
-
-                robot = objet
-            else:
-                obstacles.append(objet)
+            obstacles.append(objet)
         else:
             raise ValueError("symbole inconnu {}".format(lettre))
 
         x += 1
 
-    labyrinthe = Labyrinthe(robot, obstacles)
+    labyrinthe = Labyrinthe(obstacles)
     return labyrinthe
-
-def charger_labyrinthe():
-    """Charge le labyrinthe si le fichier d'enregistrement est trouvé.
-
-    Si le fichier n'existe pas, retourne None.
-
-    """
-    if os.path.exists(FICHIER_ENREGISTREMENT):
-        with open(FICHIER_ENREGISTREMENT, "rb") as fichier:
-            unpic = pickle.Unpickler(fichier)
-            return unpic.load()
-
-    return None
